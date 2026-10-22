@@ -1,0 +1,119 @@
+name: Release origin proxy
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: origin-proxy-image
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.repository == 'authflow-ai/authflow-origin'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/authflow-ai/authflow-origin-proxy
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - name: Require the release commit on main and matching version
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          cat > "$RUNNER_TEMP/check-origin-image.mjs" <<'JAVASCRIPT'
+          import { appendFileSync, readFileSync } from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          export const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+          export function checkVersion(project, tag) {
+            const versions = [...project.matchAll(/<Version>\s*([^<]+?)\s*<\/Version>/g)].map((m) => m[1]);
+            if (versions.length !== 1 || !semver.test(versions[0]) || tag !== `v${versions[0]}`)
+              throw new Error('Tag must match the exact project Version X.Y.Z');
+            return versions[0];
+          }
+          export function tagsFor(version, existing) {
+            if (!semver.test(version)) throw new Error('Invalid release version');
+            if (existing.includes(version)) throw new Error('Version is already published; bump the version instead of replacing it');
+            const parse = (v) => v.split('.').map(BigInt);
+            const newer = (a, b) => { const x = parse(a), y = parse(b); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i]; return false; };
+            const [major, minor] = version.split('.');
+            const releases = existing.filter((v) => semver.test(v));
+            const newest = (filter) => releases.filter(filter).every((v) => newer(version, v));
+            return [version,
+              ...(newest((v) => v.startsWith(`${major}.${minor}.`)) ? [`${major}.${minor}`] : []),
+              ...(newest((v) => v.startsWith(`${major}.`)) ? [major] : []),
+              ...(newest(() => true) ? ['latest'] : [])];
+          }
+          export async function registryTags(token, initialRelease, fetcher = fetch) {
+            const tags = [];
+            for (let page = 1; page <= 20; page++) {
+              const result = await fetcher(`https://api.github.com/orgs/authflow-ai/packages/container/authflow-origin-proxy/versions?per_page=100&page=${page}`, {
+                headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+              });
+              // The first package does not exist yet. Later missing/inaccessible packages fail closed.
+              if (result.status === 404 && page === 1 && initialRelease) return [];
+              if (!result.ok) throw new Error(`Container version lookup failed (HTTP ${result.status})`);
+              const versions = await result.json();
+              if (!Array.isArray(versions)) throw new Error('Unexpected container version response');
+              for (const version of versions) {
+                if (!Array.isArray(version.metadata?.container?.tags)) throw new Error('Unreadable container version tags');
+                tags.push(...version.metadata.container.tags);
+              }
+              if (versions.length < 100) return tags;
+            }
+            throw new Error('Container version pagination exceeded its safe bound');
+          }
+          async function runGate() {
+            if (process.env.GITHUB_REPOSITORY !== 'authflow-ai/authflow-origin') throw new Error('Wrong image repository');
+            const version = checkVersion(readFileSync('proxy/src/Rail.OriginProxy.csproj', 'utf8'), process.env.GITHUB_REF_NAME);
+            const initialRelease = version === '1.0.0' && execFileSync('git', ['rev-list', '--count', 'HEAD'], { encoding: 'utf8' }).trim() === '1';
+            const tags = tagsFor(version, await registryTags(process.env.GITHUB_TOKEN, initialRelease));
+            appendFileSync(process.env.GITHUB_ENV, `VERSION=${version}\nTAGS=${tags.join(' ')}\n`);
+          }
+          await runGate();
+          JAVASCRIPT
+          node "$RUNNER_TEMP/check-origin-image.mjs"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build the released public source
+        run: |
+          docker buildx build --file proxy/Dockerfile --platform linux/amd64 --load --tag "$IMAGE:$VERSION" \
+            --label 'org.opencontainers.image.title=authflow-origin-proxy' \
+            --label 'org.opencontainers.image.licenses=Apache-2.0' \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.version=$VERSION" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" .
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Recheck immutable version immediately before push
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node "$RUNNER_TEMP/check-origin-image.mjs"
+      - name: Push version and eligible floating tags
+        run: |
+          for tag in $TAGS; do
+            if test "$tag" != "$VERSION"; then docker tag "$IMAGE:$VERSION" "$IMAGE:$tag"; fi
+            docker push "$IMAGE:$tag"
+          done
+      - name: Record the immutable image digest
+        run: |
+          digest="$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{.Manifest.Digest}}')"
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo 'No valid image digest returned'; exit 1; }
+          printf '## %s:%s\n\nPin in production: `%s@%s`\n' "$IMAGE" "$VERSION" "$IMAGE" "$digest" >> "$GITHUB_STEP_SUMMARY"
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io

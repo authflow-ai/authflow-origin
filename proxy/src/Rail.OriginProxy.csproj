@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Rail.OriginProxy</RootNamespace>
+    <AssemblyName>Rail.OriginProxy</AssemblyName>
+    <Version>1.0.0</Version>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="NSec.Cryptography" Version="26.4.0" />
+    <PackageReference Include="StackExchange.Redis" Version="3.3.1" />
+    <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Rail.OriginProxy/**/*.cs" />
+    <Compile Include="Rail.Kernel/OriginProtocol/Base64Url.cs" />
+    <Compile Include="Rail.Kernel/OriginProtocol/OriginIdentityClaims.cs" />
+    <Compile Include="Rail.Kernel/OriginProtocol/OriginIdentityCompact.cs" />
+    <Compile Include="Rail.Kernel/OriginProtocol/OriginProtocolConstants.cs" />
+    <Compile Include="Rail.Kernel/OriginProtocol/OriginProtocolErrors.cs" />
+    <Compile Include="Rail.Kernel/Primitives/ResourceIdentifierForm.cs" />
+    <Compile Include="Rail.Kernel/Primitives/ResourceUri.cs" />
+    <Compile Include="Rail.Kernel/Primitives/UserId.cs" />
+    <Compile Include="Rail.Kernel/Time/IClock.cs" />
+  </ItemGroup>
+</Project>

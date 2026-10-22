@@ -5,8 +5,8 @@ Put your MCP server behind Authflow with the origin proxy sidecar, or copy a ver
 | Your server | Use |
 | --- | --- |
 | Any language; you can run a container | The `authflow-origin-proxy` image. Keep the upstream reachable only through the proxy. |
-| TypeScript on Node 24+ or Cloudflare Workers with Web Crypto Ed25519 | Copy [`authflow-origin-verifier.ts`](https://github.com/authflow-ai/authflow-origin/blob/v1.0.0/verifiers/authflow-origin-verifier.ts). Wire it into your request handler and an atomic replay store. |
-| Python 3.11 or later | Copy [`authflow_origin_verifier.py`](https://github.com/authflow-ai/authflow-origin/blob/v1.0.0/verifiers/authflow_origin_verifier.py). Install `cryptography`, then wire the verifier into your request handler and an atomic replay store. |
+| TypeScript on Node 24+ or Cloudflare Workers with Web Crypto Ed25519 | Copy [`authflow-origin-verifier.ts`](https://github.com/authflow-ai/authflow-origin/blob/v1.0.1/verifiers/authflow-origin-verifier.ts). Wire it into your request handler and an atomic replay store. |
+| Python 3.11 or later | Copy [`authflow_origin_verifier.py`](https://github.com/authflow-ai/authflow-origin/blob/v1.0.1/verifiers/authflow_origin_verifier.py). Install `cryptography`, then wire the verifier into your request handler and an atomic replay store. |
 
 These are copyable source files, not npm or PyPI packages. Keep the version you copied with your application and review later releases before replacing it. The [Origin Protocol v1 specification](https://docs.authflow.ai/docs/protocol/v1) defines the wire contract.
 
@@ -15,13 +15,13 @@ These are copyable source files, not npm or PyPI packages. Keep the version you 
 Get the exact `issuer` and canonical `resource` from your MCP’s registration receipt. Register the proxy’s base URL as `origin_base_uri`; the gateway adds `/mcp`, so the base URL must not end in `/mcp`.
 
 ```sh
-docker pull ghcr.io/authflow-ai/authflow-origin-proxy:1.0.0
+docker pull ghcr.io/authflow-ai/authflow-origin-proxy:1.0.1
 docker run -p 8080:8080 \
   -e Authflow__Issuer="$AUTHFLOW_ISSUER" \
   -e Authflow__Resource="$AUTHFLOW_RESOURCE" \
   -e Authflow__UpstreamBaseUri=http://upstream:3000 \
   -e Authflow__SingleReplica=true \
-  ghcr.io/authflow-ai/authflow-origin-proxy:1.0.0
+  ghcr.io/authflow-ai/authflow-origin-proxy:1.0.1
 ```
 
 The upstream name must resolve on your container network. Expose only the proxy to incoming traffic. The image listens on port 8080; `GET /healthz` is its container health endpoint. For production, replace the version tag with the release’s verified `ghcr.io/authflow-ai/authflow-origin-proxy@sha256:…` reference.
@@ -82,7 +82,7 @@ For a paid `origin_reported` MCP, your application also implements the [usage re
 
 This repository contains only the source creators use: this guide, the licence and changelog, proxy source, two verifier files and the image-release workflow. It is a distribution repository; changes arrive through Authflow’s approved publisher. Direct branch changes and release-tag changes are restricted by repository rules.
 
-Each `vX.Y.Z` release tag builds the proxy image from [`proxy/Dockerfile`](https://github.com/authflow-ai/authflow-origin/blob/v1.0.0/proxy/Dockerfile) using this repository’s source and publishes it to GHCR. To build a checked-out release locally:
+Each `vX.Y.Z` release tag builds the proxy image from [`proxy/Dockerfile`](https://github.com/authflow-ai/authflow-origin/blob/v1.0.1/proxy/Dockerfile) using this repository’s source and publishes it to GHCR. To build a checked-out release locally:
 
 ```sh
 docker build -f proxy/Dockerfile -t authflow-origin-proxy .

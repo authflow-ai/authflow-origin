@@ -39,7 +39,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 PROTOCOL_VERSION = "v1"
-VERIFIER_VERSION = "1.0.0"
+VERIFIER_VERSION = "1.0.1"
 MAX_HEADER_BYTES = 16_384
 MAX_KEY_DOCUMENT_BYTES = 65_536
 _KID = re.compile(r"[A-Za-z0-9._-]{1,64}")

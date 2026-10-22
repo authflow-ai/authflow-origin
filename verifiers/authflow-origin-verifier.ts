@@ -8,7 +8,7 @@
 // Redis SET NX with expiry or a Durable Object transaction works; Workers KV get/put does not.
 
 export const PROTOCOL_VERSION = "v1";
-export const VERIFIER_VERSION = "1.0.0";
+export const VERIFIER_VERSION = "1.0.1";
 
 export type OriginErrorCode =
   | "missing_identity" | "unsupported_version" | "malformed_identity"

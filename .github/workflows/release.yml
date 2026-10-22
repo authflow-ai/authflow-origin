@@ -3,6 +3,12 @@ name: Release origin proxy
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      initialize_package:
+        description: Allow a missing GHCR package for its first image publication
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -21,6 +27,7 @@ jobs:
       packages: write
     env:
       IMAGE: ghcr.io/authflow-ai/authflow-origin-proxy
+      INITIALIZE_PACKAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.initialize_package == true }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -79,7 +86,8 @@ jobs:
           async function runGate() {
             if (process.env.GITHUB_REPOSITORY !== 'authflow-ai/authflow-origin') throw new Error('Wrong image repository');
             const version = checkVersion(readFileSync('proxy/src/Rail.OriginProxy.csproj', 'utf8'), process.env.GITHUB_REF_NAME);
-            const initialRelease = version === '1.0.0' && execFileSync('git', ['rev-list', '--count', 'HEAD'], { encoding: 'utf8' }).trim() === '1';
+            const initialRelease = (process.env.GITHUB_EVENT_NAME === 'workflow_dispatch' && process.env.INITIALIZE_PACKAGE === 'true')
+              || (version === '1.0.0' && execFileSync('git', ['rev-list', '--count', 'HEAD'], { encoding: 'utf8' }).trim() === '1');
             const tags = tagsFor(version, await registryTags(process.env.GITHUB_TOKEN, initialRelease));
             appendFileSync(process.env.GITHUB_ENV, `VERSION=${version}\nTAGS=${tags.join(' ')}\n`);
           }
